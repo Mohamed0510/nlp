@@ -1,0 +1,97 @@
+import nltk
+from nltk.tokenize import word_tokenize
+import string
+from math import log
+from nltk.stem import PorterStemmer
+
+nltk.download('averaged_perceptron_tagger_eng', quiet=True)
+nltk.download('wordnet', quiet=True)
+nltk.download('punkt', quiet=True)
+nltk.download('stopwords', quiet=True)
+nltk.download('tagsets', quiet=True)
+stemmer = PorterStemmer()
+lemmatizer = nltk.WordNetLemmatizer()
+
+def text_categorizer(testing_file = 0, dict_token_label = 0, dict_label = 0, dict_categ = 0):
+    k = 0.07
+    f_test = open(testing_file, 'r')
+    f_test_sent = f_test.read().splitlines()
+    predictions = []
+    train_count = sum(dict_label.values())
+    unique_categ = dict_categ.keys()
+    for sentence in f_test_sent:
+        file_cat = sentence.split()
+        test_file = open(file_cat[0], 'r')
+        test_file_tokenize = word_tokenize(test_file.read())
+        test_d = dict()
+        for token in test_file_tokenize:
+            token = stemmer.stem(token)
+            token = lemmatizer.lemmatize(token)
+            token = token.lower()
+            if token in list(string.punctuation):
+                pass
+            else:
+                if token in test_d:    
+                    test_d[token] += 1.
+                else:
+                    test_d[token] = 1.
+        vocab_size = len(test_d)
+        dict_label_prob = dict()
+        for label in unique_categ:
+            initial_prob = 0.
+            label_prob = dict_label[label]/train_count
+            smoothing = dict_categ[label] + k*vocab_size
+            for word, count in test_d.items():
+                if (word, label) in dict_token_label:
+                    count_categ = dict_token_label[(word, label)]+k
+                else:
+                    count_categ = k
+                log_categ = count*log(count_categ/smoothing)
+                initial_prob += log_categ
+            dict_label_prob[label] = initial_prob + log(label_prob)
+        decision = max(dict_label_prob, key = dict_label_prob.get)
+        str = sentence + ' ' + decision +'\n'
+        predictions.append(str)
+    output_file = input("Enter the name for the prediction output file - ")
+    f_output = open(output_file, 'w')
+    for sentence in predictions:
+        f_output.write(sentence)
+    f_output.close()
+    return
+
+def text_processer(training_file = 0, testing_file = 0):
+    dict_token_label = dict()
+    dict_label = dict()
+    dict_categ = dict()
+    f_train = open(training_file, 'r')
+    f_train_sent = f_train.read().splitlines()
+    
+    for sentence in f_train_sent:
+        file_cat = sentence.split()
+        train_file = open(file_cat[0], 'r')
+        train_file_tokenized = word_tokenize(train_file.read())
+        label = file_cat[1]
+        if label in dict_label:
+           dict_label[label] += 1.
+        else:
+           dict_label[label] = 1.
+        
+        for token in train_file_tokenized:
+            token = stemmer.stem(token)
+            token = token.lower()
+            token = lemmatizer.lemmatize(token)
+            if (token,label) in dict_token_label:
+                dict_token_label[(token, label)] += 1.
+            else:
+                dict_token_label[(token, label)] = 1.
+            if label in dict_categ:
+                dict_categ[label] += 1.
+            else:
+                dict_categ[label] = 1.
+    train_count = sum(dict_label.values())
+    text_categorizer(testing_file, dict_token_label, dict_label, dict_categ)
+    return
+
+training_file = input("Enter the name of the training file containing list of labelled training documents - ")
+testing_file = input("Enter the name of the testing file containing list of unlabelled testing documents - ")
+text_processer(training_file, testing_file)
